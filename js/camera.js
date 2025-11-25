@@ -17,6 +17,8 @@ export default class Camera {
         mat4.lookAt(this.viewMatrix, this.location.asArray(), this.target.asArray(), [0, 0, 1])
     }
 
+    direction = () => this.target.sub(this.location)
+
     resize(width, height) {
         this.aspect = width / height
         mat4.perspective(this.projectionMatrix, this.fov, this.aspect, this.zNear, this.zFar)
