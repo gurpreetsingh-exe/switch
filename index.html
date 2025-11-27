@@ -1,38 +1,55 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-
-<head>
+  <head>
     <title></title>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link href="css/style.css" rel="stylesheet">
-    <link rel="apple-touch-icon" sizes="180x180" href="assets/favicon/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon/favicon-16x16.png">
-    <link rel="manifest" href="assets/favicon/site.webmanifest">
-</head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link href="css/style.css" rel="stylesheet" />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="assets/favicon/apple-touch-icon.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="assets/favicon/favicon-32x32.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="16x16"
+      href="assets/favicon/favicon-16x16.png"
+    />
+    <link rel="manifest" href="assets/favicon/site.webmanifest" />
+  </head>
 
-<body>
+  <body>
     <canvas id="screen" width="320" height="180"></canvas>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gl-matrix/2.8.1/gl-matrix-min.js"
-        integrity="sha512-zhHQR0/H5SEBL3Wn6yYSaTTZej12z0hVZKOv3TwCUXT1z5qeqGcXJLLrbERYRScEDDpYIJhPC1fk31gqR783iQ=="
-        crossorigin="anonymous" defer></script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/gl-matrix/2.8.1/gl-matrix-min.js"
+      integrity="sha512-zhHQR0/H5SEBL3Wn6yYSaTTZej12z0hVZKOv3TwCUXT1z5qeqGcXJLLrbERYRScEDDpYIJhPC1fk31gqR783iQ=="
+      crossorigin="anonymous"
+      defer
+    ></script>
     <script src="js/debug/webgl-debug.js"></script>
     <script type="module" src="js/main.js"></script>
     <header>
-        <div class="container">
-            <nav>
-                <span class="header-title text-effect">HELLO</span>
-                <ul>
-                    <li><a><span class="text-effect">HOME</span></a></li>
-                    <li><a><span class="text-effect">ABOUT</span></a></li>
-                </ul>
-            </nav>
-        </div>
+      <div class="container">
+        <nav>
+          <span class="header-title text-effect">HELLO</span>
+          <ul>
+            <li>
+              <a><span class="text-effect">HOME</span></a>
+            </li>
+            <li>
+              <a><span class="text-effect">ABOUT</span></a>
+            </li>
+          </ul>
+        </nav>
+      </div>
     </header>
-    <div class="backdrop">
-    </div>
-
-</body>
-
+    <div class="backdrop"></div>
+  </body>
 </html>

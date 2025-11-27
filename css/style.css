@@ -1,112 +1,112 @@
-@import url('https://fonts.googleapis.com/css2?family=Mona+Sans:ital,wght@0,200..900;1,200..900&family=Stack+Sans+Headline:wght@200..700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Mona+Sans:ital,wght@0,200..900;1,200..900&family=Stack+Sans+Headline:wght@200..700&display=swap");
 
 :root {
-    --green: #c4ff00;
-    --stack-sans: "Stack Sans Headline";
-    --mona-sans: "Mona Sans";
+  --green: #c4ff00;
+  --stack-sans: "Stack Sans Headline";
+  --mona-sans: "Mona Sans";
 }
 
 #screen {
-    position: absolute;
-    z-index: 100;
-    overflow: hidden;
-    width: 100%;
-    height: 100%;
-    left: 0;
-    top: 0;
+  position: absolute;
+  z-index: 100;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  left: 0;
+  top: 0;
 }
 
 * {
-    font-family: var(--mona-sans);
-    font-optical-sizing: auto;
-    font-style: normal;
-    font-variation-settings: "wdth" 100;
-    margin: 0;
-    padding: 0;
-    line-height: 1;
+  font-family: var(--mona-sans);
+  font-optical-sizing: auto;
+  font-style: normal;
+  font-variation-settings: "wdth" 100;
+  margin: 0;
+  padding: 0;
+  line-height: 1;
 }
 
 body {
-    background: #111;
-    overflow: hidden;
+  background: #111;
+  overflow: hidden;
 }
 
 .container {
-    display: flex;
-    margin: 0 auto;
-    width: 100%;
+  display: flex;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .backdrop {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
 }
 
 header {
-    z-index: 120;
-    position: fixed;
-    left: 0;
-    top: 0;
-    width: 100%;
+  z-index: 120;
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 100%;
 }
 
 nav {
-    display: flex;
-    padding: 20px;
-    justify-content: center;
-    font-size: 1.2rem;
-    color: #fff;
-    justify-content: space-between;
-    width: 100%;
+  display: flex;
+  padding: 20px;
+  justify-content: center;
+  font-size: 1.2rem;
+  color: #fff;
+  justify-content: space-between;
+  width: 100%;
 }
 
 .header-title {
-    color: var(--green);
-    font-weight: 900;
-    font-size: 1.2rem;
+  color: var(--green);
+  font-weight: 900;
+  font-size: 1.2rem;
 }
 
 .text-effect {
-    cursor: pointer;
-    overflow: hidden;
+  cursor: pointer;
+  overflow: hidden;
 
+  span {
+    position: relative;
+    display: inline-block;
+    transition:
+      transform 0.4s cubic-bezier(0, 1, 0.8, 1),
+      font-weight 0.4s cubic-bezier(0, 1, 0.8, 1),
+      color 0.4s cubic-bezier(0, 1, 0.8, 1);
+  }
+
+  span::before {
+    content: attr(data-text);
+    position: absolute;
+    transform: translateY(2ex);
+  }
+
+  span:nth-child(n) {
+    transition-delay: calc(var(--n) * 0.025s);
+  }
+
+  &:hover {
     span {
-        position: relative;
-        display: inline-block;
-        transition:
-            transform 0.4s cubic-bezier(0, 1, 0.8, 1),
-            font-weight 0.4s cubic-bezier(0, 1, 0.8, 1),
-            color 0.4s cubic-bezier(0, 1, 0.8, 1);
+      transform: translateY(-2ex);
+      font-weight: 900;
+      color: var(--green);
     }
-
-    span::before {
-        content: attr(data-text);
-        position: absolute;
-        transform: translateY(2ex);
-    }
-
-    span:nth-child(n) {
-        transition-delay: calc(var(--n) * 0.025s);
-    }
-
-    &:hover {
-        span {
-            transform: translateY(-2ex);
-            font-weight: 900;
-            color: var(--green);
-        }
-    }
+  }
 }
 
 ul li {
-    text-decoration: none;
-    overflow: hidden;
-    float: left;
-    padding: 0 20px;
+  text-decoration: none;
+  overflow: hidden;
+  float: left;
+  padding: 0 20px;
 }
