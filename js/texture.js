@@ -1,5 +1,5 @@
 import { loadImage, RGBELoader } from "./loaders.js"
-import { initShaderProgram, Shader } from "./shader.js"
+import { Shader } from "./shader.js"
 
 /**
  * @param {WebGL2RenderingContext} gl
@@ -16,60 +16,6 @@ export const loadTexture = async (gl, url) => {
   return texture
 }
 
-const s_fullscreen = `
-out vec2 v_uv;
-
-void main(void) {
-  float x = float((gl_VertexID & 1) << 2);
-  float y = float((gl_VertexID & 2) << 1);
-  v_uv = .5f * vec2(x, y);
-  gl_Position = vec4(x - 1.f, y - 1.f, 0.f, 1.f);
-}
-`
-
-const s_panorama_to_cubemap = `
-
-in vec2 v_uv;
-out vec4 FragColor;
-
-uniform int uCurrentFace;
-uniform sampler2D uPanorama;
-
-vec3 uv_to_xyz(int face, vec2 uv) {
-  if (face == 0) {
-    return vec3(1.f, uv.y, -uv.x);
-  } else if (face == 1) {
-    return vec3(-1.f, uv.y, uv.x);
-  } else if (face == 2) {
-    return vec3(uv.x, -1.f, uv.y);
-  } else if (face == 3) {
-    return vec3(uv.x, 1.f, -uv.y);
-  } else if (face == 4) {
-    return vec3(uv.x, uv.y, 1.f);
-  } else {
-    return vec3(-uv.x, uv.y, -1.f);
-  }
-}
-
-vec2 dir_to_uv(vec3 dir) {
-  return vec2(0.5f + 0.5f * atan(dir.y, dir.x) / MATH_PI,
-              acos(dir.z) / MATH_PI);
-}
-
-vec3 panorama_to_cubemap(int face, vec2 coords) {
-  vec2 coords_new = coords * 2.0 - 1.0;
-  vec3 scan = uv_to_xyz(face, coords_new);
-  vec3 direction = normalize(scan);
-  vec2 src = dir_to_uv(direction);
-  return texture(uPanorama, src).rgb;
-}
-
-void main(void) {
-  FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-  FragColor.rgb = panorama_to_cubemap(uCurrentFace, v_uv);
-}
-`
-
 /**
  * @param {WebGL2RenderingContext} gl
  */
@@ -82,7 +28,6 @@ export const loadEnvTexture = async (gl, url) => {
 
   const loader = new RGBELoader()
   let currentHDR = loader.parse(result)
-  console.log(`${currentHDR.width}, ${currentHDR.height}`)
   const width = 1000
   const height = 1000
   gl.texParameteri(
@@ -110,9 +55,12 @@ export const loadEnvTexture = async (gl, url) => {
 
   gl.bindTexture(gl.TEXTURE_CUBE_MAP, null)
 
+  const vr = await fetch("shaders/fs_quad.glsl")
+  const fr = await fetch("shaders/panorama_to_cubemap.glsl")
+
   const shader = new Shader({
-    vertex: s_fullscreen,
-    fragment: s_panorama_to_cubemap,
+    vertex: await vr.text(),
+    fragment: await fr.text(),
   })
 
   let hdri = gl.createTexture()
