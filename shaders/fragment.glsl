@@ -4,6 +4,7 @@ out vec4 FragColor;
 
 uniform sampler2D uTexture;
 uniform samplerCube uHdri;
+uniform samplerCube uIrradiance;
 uniform vec3 uDiffuseColor;
 uniform float uRoughness;
 uniform float uMetallic;
@@ -11,12 +12,10 @@ uniform vec3 uViewVector;
 uniform vec3 uLightDirection;
 uniform vec3 uCameraPosition;
 
-#define PI 3.14159f
-
 float D_GGX(float NoH, float a) {
   float a2 = a * a;
   float d = NoH * NoH * (a2 - 1.0f) + 1.0f;
-  d = PI * d * d;
+  d = MATH_PI * d * d;
   return a2 / max(d, 0.000001f);
 }
 
@@ -95,41 +94,39 @@ void main() {
   vec3 H = normalize(L + V);
 
   float NoV = abs(dot(N, V)) + 1e-5;
-  float NoL = clamp(dot(N, L), 0.0f, 1.0f);
-  float NoH = clamp(dot(N, H), 0.0f, 1.0f);
-  float HoV = clamp(dot(H, V), 0.0f, 1.0f);
+  float NoL = clamp(dot(N, L), 0.0f, 1.0f) + 1e-5;
+  float NoH = clamp(dot(N, H), 0.0f, 1.0f) + 1e-5;
+  float HoV = clamp(dot(H, V), 0.0f, 1.0f) + 1e-5;
 
-  vec3 radiance = vec3(1) * getLight(NoL, 6.0f);
-
-  float perceptualRoughness = uRoughness;
-  float roughness = perceptualRoughness * perceptualRoughness;
+  // float perceptualRoughness = uRoughness;
+  // float roughness = perceptualRoughness * perceptualRoughness;
+  float roughness = uRoughness;
   vec3 base_reflectivity = mix(vec3(0.04f), uDiffuseColor, uMetallic);
 
-  float D = D_GGX(NoH, roughness);
-  float G = GeometrySmith(NoV, NoL, roughness);
-  vec3 F = F_Schlick(HoV, base_reflectivity);
-  vec3 specular = D * G * F;
-  specular /= 4.0f * NoV * NoL;
-
   vec3 Lo = vec3(0);
-  vec3 kD = vec3(1.0f) - F;
+  {
+    vec3 radiance = vec3(1) * getLight(NoL, 6.0f);
+
+    float D = D_GGX(NoH, roughness);
+    float G = GeometrySmith(NoV, NoL, roughness);
+    vec3 F = F_Schlick(HoV, base_reflectivity);
+    vec3 specular = D * G * F;
+    specular /= 4.0f * NoV * NoL;
+
+    vec3 kD = vec3(1.0f) - F;
+    kD *= 1.0f - uMetallic;
+    Lo += (kD * uDiffuseColor / MATH_PI + specular) * radiance * NoL;
+  }
+
+  vec3 kD = 1.0f - F_Schlick(NoV, base_reflectivity);
   kD *= 1.0f - uMetallic;
-  Lo += (kD * uDiffuseColor / PI + specular) * radiance * NoL;
-  vec3 color = Lo;
-  vec3 I = normalize(uCameraPosition - P);
-  vec3 R = normalize(reflect(I, N));
-  vec3 sp = textureLod(uHdri, R, 6.0).rgb;
 
-  vec3 irradiance = textureLod(uHdri, N, 8.0).rgb;
-  vec3 diffuse = uDiffuseColor / PI * irradiance;
+  vec3 irradiance = texture(uIrradiance, N).rgb;
+  vec3 diffuse = irradiance * uDiffuseColor;
+  const float ao = 1.0f;
+  vec3 ambient = (kD * diffuse) * ao;
 
-  float lod = roughness * 8.0;
-  vec3 prefilteredColor = textureLod(uHdri, R, lod).rgb;
-  specular = prefilteredColor * F_Schlick(max(dot(R, V), 0.0), base_reflectivity) * uMetallic;
-
-  color = diffuse + specular;
-  // color = sp;
-  // color = Lo;
+  vec3 color = Lo + ambient;
   color = tonemap(color);
   FragColor = vec4(color, 1.0f);
 }

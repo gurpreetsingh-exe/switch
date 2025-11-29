@@ -1,7 +1,7 @@
 import { Shader } from "./shader.js"
 import Material from "./material.js"
 import { loadModel } from "./loaders.js"
-import { loadEnvTexture } from "./texture.js"
+import { generateIrradiance, loadCubeMapShader, Texture, TextureCubeMap } from "./texture.js"
 import { gl, initContext } from "./context.js"
 import State from "./state.js"
 import { IntroScene, OrbitScene } from "./scene.js"
@@ -28,7 +28,7 @@ const easeInOutElastic = x => {
 }
 
 const random_rotation = [-1, 0.5, 0]
-// const random_rotation = [0, 0, 0];
+// const random_rotation = [0, 0, 0]
 let progress = 0
 
 const draw = _deltaTime => {
@@ -51,11 +51,8 @@ const draw = _deltaTime => {
     programInfo.shader.uniformVec3("uViewVector", camera.location)
     programInfo.shader.uniformVec3("uCameraPosition", camera.direction())
     programInfo.shader.uniformVec3("uLightDirection", window.lightDirection)
-    programInfo.shader.uniformSampler(
-      "uHdri",
-      gl.TEXTURE_CUBE_MAP,
-      programInfo.hdri,
-    )
+    programInfo.shader.uniformSampler("uHdri", programInfo.hdri)
+    programInfo.shader.uniformSampler("uIrradiance", programInfo.irradiance)
 
     programInfo.meshes.forEach(me => {
       const r = me.rotation
@@ -138,6 +135,8 @@ const main = () => {
 
   const canvas = document.getElementById("screen")
   initContext(canvas)
+  loadCubeMapShader().then(() => {})
+
   renderer = new Renderer()
 
   state.addScene(IntroScene.type, new IntroScene())
@@ -173,7 +172,12 @@ const main = () => {
     fetch("shaders/vertex.glsl"),
     fetch("shaders/fragment.glsl"),
     loadModel("assets/sphere.json"),
-    loadEnvTexture(gl, "assets/studio_small_08_1k.hdr"),
+    Texture.create({
+      kind: TextureCubeMap,
+      width: 1000,
+      height: 1000,
+      url: "assets/studio_small_08_1k.hdr",
+    }),
   ])
     .then(([vertex, fragment, meshes, hdri]) =>
       Promise.all([vertex.text(), fragment.text(), meshes, hdri]),
@@ -200,6 +204,7 @@ const main = () => {
         }),
         gpuMeshes: [],
         hdri,
+        irradiance: generateIrradiance(hdri, 32, 32),
         size: 0,
       }
 

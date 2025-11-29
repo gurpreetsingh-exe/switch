@@ -105,9 +105,9 @@ export class Shader {
     gl.uniformMatrix4fv(this.getUniformLocation(name), false, v)
   }
 
-  uniformSampler(name, target, v) {
+  uniformSampler(name, v) {
     gl.activeTexture(gl.TEXTURE0 + this.boundSamplers)
-    gl.bindTexture(target, v)
+    gl.bindTexture(v.target, v.id)
     this.uniformInt(name, this.boundSamplers)
     this.boundSamplers++
   }

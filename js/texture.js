@@ -1,3 +1,4 @@
+import { gl } from "./context.js"
 import { loadImage, RGBELoader } from "./loaders.js"
 import { Shader } from "./shader.js"
 
@@ -16,10 +17,29 @@ export const loadTexture = async (gl, url) => {
   return texture
 }
 
+let shader
+let irradianceShader
+export const loadCubeMapShader = async () => {
+  const vr = await fetch("shaders/fs_quad.glsl")
+  const fr1 = await fetch("shaders/panorama_to_cubemap.glsl")
+  const fr2 = await fetch("shaders/cubemap_convolution.glsl")
+  const vertex = await vr.text()
+
+  shader = new Shader({
+    vertex,
+    fragment: await fr1.text(),
+  })
+
+  irradianceShader = new Shader({
+    vertex,
+    fragment: await fr2.text(),
+  })
+}
+
 /**
  * @param {WebGL2RenderingContext} gl
  */
-export const loadEnvTexture = async (gl, url) => {
+export const loadEnvTexture = async (gl, url, width, height) => {
   const r = await fetch(url)
   const blob = await r.blob()
   const result = await blob.arrayBuffer()
@@ -28,8 +48,6 @@ export const loadEnvTexture = async (gl, url) => {
 
   const loader = new RGBELoader()
   let currentHDR = loader.parse(result)
-  const width = 1000
-  const height = 1000
   gl.texParameteri(
     gl.TEXTURE_CUBE_MAP,
     gl.TEXTURE_MIN_FILTER,
@@ -55,16 +73,8 @@ export const loadEnvTexture = async (gl, url) => {
 
   gl.bindTexture(gl.TEXTURE_CUBE_MAP, null)
 
-  const vr = await fetch("shaders/fs_quad.glsl")
-  const fr = await fetch("shaders/panorama_to_cubemap.glsl")
-
-  const shader = new Shader({
-    vertex: await vr.text(),
-    fragment: await fr.text(),
-  })
-
-  let hdri = gl.createTexture()
-  gl.bindTexture(gl.TEXTURE_2D, hdri)
+  let hdri_id = gl.createTexture()
+  gl.bindTexture(gl.TEXTURE_2D, hdri_id)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
   gl.texImage2D(
@@ -77,6 +87,12 @@ export const loadEnvTexture = async (gl, url) => {
     gl.RGBA,
     gl.UNSIGNED_BYTE,
     currentHDR.data,
+  )
+  const hdri = new Texture(
+    Texture2D,
+    currentHDR.width,
+    currentHDR.height,
+    hdri_id,
   )
 
   const fbo = gl.createFramebuffer()
@@ -98,7 +114,7 @@ export const loadEnvTexture = async (gl, url) => {
   gl.bindFramebuffer(gl.FRAMEBUFFER, null)
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, fbo)
-  gl.viewport(0, 0, 1000, 1000)
+  gl.viewport(0, 0, width, height)
   shader.with(() => {
     for (let i = 0; i < 6; ++i) {
       gl.bindTexture(gl.TEXTURE_CUBE_MAP, texture)
@@ -110,7 +126,7 @@ export const loadEnvTexture = async (gl, url) => {
         0,
       )
 
-      shader.uniformSampler("uPanorama", gl.TEXTURE_2D, hdri)
+      shader.uniformSampler("uPanorama", hdri)
       shader.uniformInt("uCurrentFace", i)
 
       gl.drawArrays(gl.TRIANGLES, 0, 3)
@@ -122,4 +138,109 @@ export const loadEnvTexture = async (gl, url) => {
   gl.generateMipmap(gl.TEXTURE_CUBE_MAP)
   gl.deleteFramebuffer(fbo)
   return texture
+}
+
+export const Texture2D = Symbol()
+export const TextureCubeMap = Symbol()
+
+const gl_texture_target = x => {
+  if (x === Texture2D) {
+    return gl.TEXTURE_2D
+  } else if (x === TextureCubeMap) {
+    return gl.TEXTURE_CUBE_MAP
+  } else {
+    throw new Error("unexpected texture type", x)
+  }
+}
+
+export class Texture {
+  constructor(kind, width, height, id) {
+    this.kind = kind
+    this.width = width
+    this.height = height
+    this.target = gl_texture_target(this.kind)
+    this.id = id
+  }
+
+  static async create(info) {
+    let id
+    if (info.kind === TextureCubeMap) {
+      id = await loadEnvTexture(gl, info.url, info.width, info.height)
+    } else if (info.kind === Texture2D) {
+      id = await loadTexture(gl, info.url)
+    }
+    const target = gl_texture_target(info.kind)
+    gl.bindTexture(target, null)
+    return new Texture(info.kind, info.width, info.height, id)
+  }
+
+  bind() {
+    gl.bindTexture(this.target, this.id)
+  }
+
+  unbind() {
+    gl.bindTexture(this.target, null)
+  }
+}
+
+export const generateIrradiance = (hdri, width, height) => {
+  const id = gl.createTexture()
+  gl.bindTexture(gl.TEXTURE_CUBE_MAP, id)
+  gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+  gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+  gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE)
+  gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+  gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+  for (let i = 0; i < 6; ++i) {
+    gl.texImage2D(
+      gl.TEXTURE_CUBE_MAP_POSITIVE_X + i,
+      0,
+      gl.RGBA,
+      width,
+      height,
+      0,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      null,
+    )
+  }
+
+  const fbo = gl.createFramebuffer()
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo)
+  gl.bindTexture(gl.TEXTURE_CUBE_MAP, id)
+  gl.framebufferTexture2D(
+    gl.FRAMEBUFFER,
+    gl.COLOR_ATTACHMENT0,
+    gl.TEXTURE_CUBE_MAP_POSITIVE_X,
+    id,
+    0,
+  )
+  gl.bindTexture(gl.TEXTURE_CUBE_MAP, null)
+
+  if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+    throw new Error("framebuffer status not complete")
+  }
+
+  gl.viewport(0, 0, width, height)
+  irradianceShader.with(() => {
+    for (let i = 0; i < 6; ++i) {
+      gl.bindTexture(gl.TEXTURE_CUBE_MAP, id)
+      gl.framebufferTexture2D(
+        gl.FRAMEBUFFER,
+        gl.COLOR_ATTACHMENT0,
+        gl.TEXTURE_CUBE_MAP_POSITIVE_X + i,
+        id,
+        0,
+      )
+
+      irradianceShader.uniformSampler("uHdri", hdri)
+      irradianceShader.uniformInt("uCurrentFace", i)
+
+      gl.drawArrays(gl.TRIANGLES, 0, 3)
+    }
+  })
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+  gl.bindTexture(gl.TEXTURE_CUBE_MAP, null)
+  return new Texture(TextureCubeMap, width, height, id)
 }
