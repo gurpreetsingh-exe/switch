@@ -84,6 +84,8 @@ const generatePrecompBrdf = (brdfShader, size) => {
   return new Texture(Texture2D, size, size, brdfLUTTexture)
 }
 
+let switchPressedAnimationFrame = 0
+
 const draw = _deltaTime => {
   gl.clearColor(0, 0, 0, 0)
   gl.clearDepth(1.0)
@@ -113,6 +115,14 @@ const draw = _deltaTime => {
     )
 
     programInfo.meshes.forEach(me => {
+      let offset = 0
+      if (
+        switchPressedAnimationFrame > 0 &&
+        Object.keys(me.animation).length !== 0
+      ) {
+        offset = me.animation.keyframes[40 - switchPressedAnimationFrame]
+      }
+
       const r = me.rotation
       const translation = mat4.create()
       mat4.identity(translation)
@@ -150,11 +160,12 @@ const draw = _deltaTime => {
         r2,
         rqt2,
         [0, 0, 0],
-        [1, 1, 1],
+        [window.objectScale, window.objectScale, window.objectScale],
         origin,
       )
 
       mat4.mul(modelMatrix, modelMatrix, r2)
+      mat4.translate(modelMatrix, modelMatrix, [0, 0, offset])
 
       programInfo.shader.uniformMat4("uModelMatrix", modelMatrix)
 
@@ -175,6 +186,9 @@ let lastTime = 0
 const tick = (time = 0) => {
   const deltaTime = time - lastTime
   state.tick(deltaTime)
+  if (switchPressedAnimationFrame > 0) {
+    switchPressedAnimationFrame--
+  }
 
   draw(deltaTime)
 
@@ -220,12 +234,19 @@ const main = () => {
     rot.y = (y / halfHeight) * unit
   })
 
+  window.addEventListener("mousedown", e => {
+    if (e.button === 0) {
+      switchPressedAnimationFrame = 40
+    }
+  })
+
   document.addEventListener("wheel", e => {
     progress -= e.wheelDelta / 100
     progress = Math.max(Math.min(progress, 100), 0)
   })
 
   window.lightDirection = new Vector3(0.2, -0.25, -1)
+  window.objectScale = 1
 
   Promise.all([
     fetch("shaders/vertex.glsl"),
@@ -268,6 +289,7 @@ const main = () => {
                 rmesh.material.roughness,
                 rmesh.material.metallic,
               ),
+              rmesh.animation,
             ),
         ),
         gpuMeshes: [],

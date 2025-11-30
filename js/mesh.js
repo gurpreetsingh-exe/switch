@@ -10,6 +10,7 @@ export default class Mesh {
     normals,
     indices,
     material = new Material(),
+    animation = {}
   ) {
     this.location = location
     this.rotation = rotation
@@ -31,5 +32,6 @@ export default class Mesh {
       indices,
     )
     this.material = material
+    this.animation = animation
   }
 }
