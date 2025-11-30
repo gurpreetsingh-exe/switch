@@ -174,7 +174,7 @@ let lastTime = 0
 
 const tick = (time = 0) => {
   const deltaTime = time - lastTime
-  state.tick()
+  state.tick(deltaTime)
 
   draw(deltaTime)
 
@@ -204,6 +204,7 @@ const main = () => {
     canvas.width = window.innerWidth
     canvas.height = window.innerHeight
     renderer.camera.resize(canvas.width, canvas.height)
+    state.resizeInner(window)
   }
 
   resize(window)
