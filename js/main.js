@@ -11,7 +11,7 @@ import {
 } from "./texture.js"
 import { backend, gl, initContext } from "./context.js"
 import State from "./state.js"
-import { IntroScene, OrbitScene } from "./scene.js"
+import { IntroAction, OrbitAction } from "./action.js"
 import Mesh from "./mesh.js"
 import Renderer from "./renderer.js"
 import { Vector3 } from "./math.js"
@@ -121,7 +121,7 @@ const draw = _deltaTime => {
         interp_location,
         [0, 0, 1],
         [0, 0, 0],
-        easeInOutElastic(state.scenes.get(IntroScene.type).n),
+        easeInOutElastic(state.actions.get(IntroAction.type).n),
       )
 
       mat4.translate(translation, translation, me.location)
@@ -197,8 +197,8 @@ const main = () => {
 
   renderer = new Renderer()
 
-  state.addScene(IntroScene.type, new IntroScene())
-  state.addScene(OrbitScene.type, new OrbitScene())
+  state.addAction(IntroAction.type, new IntroAction())
+  state.addAction(OrbitAction.type, new OrbitAction())
 
   const resize = window => {
     canvas.width = window.innerWidth

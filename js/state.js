@@ -1,22 +1,22 @@
 export default class State {
   constructor() {
-    this.activeScene = 0
-    this.sceneList = []
-    this.scenes = new Map()
+    this.activeAction = 0
+    this.actionList = []
+    this.actions = new Map()
   }
 
-  addScene(type, scene) {
-    this.sceneList.push(type)
-    this.scenes.set(type, scene)
+  addAction(type, action) {
+    this.actionList.push(type)
+    this.actions.set(type, action)
   }
 
-  getActiveScene = () => this.scenes.get(this.sceneList[this.activeScene])
+  getActiveAction = () => this.actions.get(this.actionList[this.activeAction])
 
   tick() {
-    const scene = this.getActiveScene()
-    if (!scene.isPlaying() && this.activeScene < this.sceneList.length - 1) {
-      this.activeScene += 1
+    const action = this.getActiveAction()
+    if (!action.isPlaying() && this.activeAction < this.actionList.length - 1) {
+      this.activeAction += 1
     }
-    scene.update()
+    action.update()
   }
 }

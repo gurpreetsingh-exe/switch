@@ -1,16 +1,16 @@
-class Scene {
+class Action {
   static type = undefined
 
   update() {
-    throw new Error("cannot call `update()` on abstract class `Scene`")
+    throw new Error("cannot call `update()` on abstract class `Action`")
   }
 
   isPlaying() {
-    throw new Error("cannot call `isPlaying()` on abstract class `Scene`")
+    throw new Error("cannot call `isPlaying()` on abstract class `Action`")
   }
 }
 
-export class IntroScene extends Scene {
+export class IntroAction extends Action {
   static type = Symbol("INTRO")
 
   constructor() {
@@ -25,7 +25,7 @@ export class IntroScene extends Scene {
   isPlaying = () => this.n <= 1
 }
 
-export class OrbitScene extends Scene {
+export class OrbitAction extends Action {
   static type = Symbol("ORBIT")
 
   constructor() {
