@@ -3,14 +3,16 @@ in vec3 v_normal;
 out vec4 FragColor;
 
 uniform sampler2D uTexture;
-uniform samplerCube uHdri;
 uniform samplerCube uIrradiance;
+uniform samplerCube uPrefilter;
+uniform sampler2D uBrdfLUT;
 uniform vec3 uDiffuseColor;
 uniform float uRoughness;
 uniform float uMetallic;
 uniform vec3 uViewVector;
 uniform vec3 uLightDirection;
 uniform vec3 uCameraPosition;
+uniform float uMaxMipLevel;
 
 float D_GGX(float NoH, float a) {
   float a2 = a * a;
@@ -39,17 +41,13 @@ vec3 F_Schlick(float cosTheta, vec3 F0) {
   return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
-vec3 sunLight(vec3 lightDirection) {
-    return normalize(-lightDirection);
-}
+vec3 sunLight(vec3 lightDirection) { return normalize(-lightDirection); }
 
 vec3 pointLight(vec3 lightPosition) {
-    return normalize(lightPosition - v_position);
+  return normalize(lightPosition - v_position);
 }
 
-float getLight(float NoL, float lightIntensity) {
-    return lightIntensity * NoL;
-}
+float getLight(float NoL, float lightIntensity) { return lightIntensity * NoL; }
 
 const float GAMMA = 2.2;
 const float INV_GAMMA = 1.0 / GAMMA;
@@ -92,6 +90,7 @@ void main() {
   vec3 V = uViewVector;
   vec3 L = sunLight(uLightDirection);
   vec3 H = normalize(L + V);
+  vec3 I = normalize(uCameraPosition - P);
 
   float NoV = abs(dot(N, V)) + 1e-5;
   float NoL = clamp(dot(N, L), 0.0f, 1.0f) + 1e-5;
@@ -118,13 +117,20 @@ void main() {
     Lo += (kD * uDiffuseColor / MATH_PI + specular) * radiance * NoL;
   }
 
-  vec3 kD = 1.0f - F_Schlick(NoV, base_reflectivity);
+  vec3 F = F_Schlick(NoV, base_reflectivity);
+  vec3 kD = 1.0f - F;
   kD *= 1.0f - uMetallic;
 
   vec3 irradiance = texture(uIrradiance, N).rgb;
   vec3 diffuse = irradiance * uDiffuseColor;
+
+  vec3 prefilteredColor =
+      textureLod(uPrefilter, reflect(I, N), roughness * uMaxMipLevel).rgb;
+  vec2 brdf = texture(uBrdfLUT, vec2(NoV, roughness)).rg;
+  vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
+
   const float ao = 1.0f;
-  vec3 ambient = (kD * diffuse) * ao;
+  vec3 ambient = (kD * diffuse + specular) * ao;
 
   vec3 color = Lo + ambient;
   color = tonemap(color);

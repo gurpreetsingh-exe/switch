@@ -3,7 +3,14 @@ import GPUBatch from "./batch.js"
 import Material from "./material.js"
 
 export default class Mesh {
-  constructor(location, rotation, vertices, normals, indices) {
+  constructor(
+    location,
+    rotation,
+    vertices,
+    normals,
+    indices,
+    material = new Material(),
+  ) {
     this.location = location
     this.rotation = rotation
     this.gpuMesh = new GPUBatch(
@@ -23,6 +30,6 @@ export default class Mesh {
       ],
       indices,
     )
-    this.material = new Material()
+    this.material = material
   }
 }

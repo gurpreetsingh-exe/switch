@@ -29,7 +29,7 @@ void main(void) {
   vec3 up = vec3(0.0, 0.0, 1.0);
   vec3 right = normalize(cross(up, N));
   if (length(right) < 1e-5) {
-      right = vec3(1.0, 0.0, 0.0);
+    right = vec3(1.0, 0.0, 0.0);
   }
 
   up = normalize(cross(N, right));
@@ -38,19 +38,13 @@ void main(void) {
   float nrSamples = 0.0;
   for (float phi = 0.0; phi < 2.0 * MATH_PI; phi += sampleDelta) {
     for (float theta = 0.0; theta < 0.5 * MATH_PI; theta += sampleDelta) {
-      vec3 tangentSample = vec3(
-        sin(theta) * cos(phi),
-        sin(theta) * sin(phi),
-        cos(theta)
-      );
+      vec3 tangentSample =
+          vec3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta));
 
       vec3 sampleVec =
-        tangentSample.x * right +
-        tangentSample.y * up +
-        tangentSample.z * N;
+          tangentSample.x * right + tangentSample.y * up + tangentSample.z * N;
 
-      irradiance += texture(uHdri, sampleVec).rgb *
-                    cos(theta) * sin(theta);
+      irradiance += texture(uHdri, sampleVec).rgb * cos(theta) * sin(theta);
 
       nrSamples += 1.0;
     }

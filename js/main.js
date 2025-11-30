@@ -1,8 +1,15 @@
 import { Shader } from "./shader.js"
 import Material from "./material.js"
 import { loadModel } from "./loaders.js"
-import { generateIrradiance, loadCubeMapShader, Texture, TextureCubeMap } from "./texture.js"
-import { gl, initContext } from "./context.js"
+import {
+  generateIrradiance,
+  generatePrefilter,
+  loadCubeMapShader,
+  Texture,
+  Texture2D,
+  TextureCubeMap,
+} from "./texture.js"
+import { backend, gl, initContext } from "./context.js"
 import State from "./state.js"
 import { IntroScene, OrbitScene } from "./scene.js"
 import Mesh from "./mesh.js"
@@ -31,8 +38,54 @@ const random_rotation = [-1, 0.5, 0]
 // const random_rotation = [0, 0, 0]
 let progress = 0
 
+const generatePrecompBrdf = (brdfShader, size) => {
+  const brdfLUTTexture = gl.createTexture()
+  gl.bindTexture(gl.TEXTURE_2D, brdfLUTTexture)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    0,
+    gl.RG16F,
+    size,
+    size,
+    0,
+    gl.RG,
+    gl.FLOAT,
+    null,
+  )
+
+  const fbo = gl.createFramebuffer()
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo)
+  gl.bindTexture(gl.TEXTURE_2D, brdfLUTTexture)
+  gl.framebufferTexture2D(
+    gl.FRAMEBUFFER,
+    gl.COLOR_ATTACHMENT0,
+    gl.TEXTURE_2D,
+    brdfLUTTexture,
+    0,
+  )
+  gl.bindTexture(gl.TEXTURE_2D, brdfLUTTexture)
+  const fbstatus = gl.checkFramebufferStatus(gl.FRAMEBUFFER)
+  if (fbstatus !== gl.FRAMEBUFFER_COMPLETE) {
+    throw new Error(`framebuffer status not complete: ${fbstatus}`)
+  }
+
+  brdfShader.with(() => {
+    gl.viewport(0, 0, size, size)
+    gl.drawArrays(gl.TRIANGLES, 0, 3)
+  })
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+  gl.deleteFramebuffer(fbo)
+
+  return new Texture(Texture2D, size, size, brdfLUTTexture)
+}
+
 const draw = _deltaTime => {
-  // gl.clearColor(0.1, 0.1, 0.1, 1.0)
+  gl.clearColor(0, 0, 0, 0)
   gl.clearDepth(1.0)
   gl.enable(gl.DEPTH_TEST)
   gl.depthFunc(gl.LEQUAL)
@@ -51,8 +104,13 @@ const draw = _deltaTime => {
     programInfo.shader.uniformVec3("uViewVector", camera.location)
     programInfo.shader.uniformVec3("uCameraPosition", camera.direction())
     programInfo.shader.uniformVec3("uLightDirection", window.lightDirection)
-    programInfo.shader.uniformSampler("uHdri", programInfo.hdri)
     programInfo.shader.uniformSampler("uIrradiance", programInfo.irradiance)
+    programInfo.shader.uniformSampler("uPrefilter", programInfo.prefilter)
+    programInfo.shader.uniformSampler("uBrdfLUT", programInfo.brdfLut)
+    programInfo.shader.uniformFloat(
+      "uMaxMipLevel",
+      Math.floor(backend.maxMipLevel * 0.5) - 1.0,
+    )
 
     programInfo.meshes.forEach(me => {
       const r = me.rotation
@@ -171,7 +229,9 @@ const main = () => {
   Promise.all([
     fetch("shaders/vertex.glsl"),
     fetch("shaders/fragment.glsl"),
-    loadModel("assets/sphere.json"),
+    fetch("shaders/fs_quad.glsl"),
+    fetch("shaders/brdf_precomp.glsl"),
+    loadModel("assets/switch.json"),
     Texture.create({
       kind: TextureCubeMap,
       width: 1000,
@@ -179,32 +239,40 @@ const main = () => {
       url: "assets/studio_small_08_1k.hdr",
     }),
   ])
-    .then(([vertex, fragment, meshes, hdri]) =>
-      Promise.all([vertex.text(), fragment.text(), meshes, hdri]),
+    .then(([vertex, fragment, fs, brdfPrecomp, meshes, hdri]) =>
+      Promise.all([
+        vertex.text(),
+        fragment.text(),
+        fs.text(),
+        brdfPrecomp.text(),
+        meshes,
+        hdri,
+      ]),
     )
-    .then(([vertex, fragment, meshes, hdri]) => {
+    .then(([vertex, fragment, fs, brdfPrecomp, meshes, hdri]) => {
+      const brdfShader = new Shader({ vertex: fs, fragment: brdfPrecomp })
+
       programInfo = {
         shader: new Shader({ vertex, fragment }),
-        meshes: meshes.map(rmesh => {
-          const mesh = new Mesh(
-            rmesh.transform.location,
-            rmesh.transform.rotation,
-            rmesh.vertices,
-            rmesh.normals,
-            rmesh.indices,
-          )
-
-          const mat = rmesh.material
-          mesh.material = new Material(
-            Vector3.fromArray(mat.color),
-            mat.roughness,
-            mat.metallic,
-          )
-          return mesh
-        }),
+        meshes: meshes.map(
+          rmesh =>
+            new Mesh(
+              rmesh.transform.location,
+              rmesh.transform.rotation,
+              rmesh.vertices,
+              rmesh.normals,
+              rmesh.indices,
+              new Material(
+                Vector3.fromArray(rmesh.material.color),
+                rmesh.material.roughness,
+                rmesh.material.metallic,
+              ),
+            ),
+        ),
         gpuMeshes: [],
-        hdri,
-        irradiance: generateIrradiance(hdri, 32, 32),
+        irradiance: generateIrradiance(hdri, 32),
+        prefilter: generatePrefilter(hdri, 128),
+        brdfLut: generatePrecompBrdf(brdfShader, 512),
         size: 0,
       }
 
