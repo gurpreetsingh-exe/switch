@@ -1,4 +1,4 @@
-const DEBUG_WINDOW_WIDTH = 200
+const DEBUG_WINDOW_WIDTH = 300
 const DEBUG_WINDOW_HEIGHT = 300
 const BORDER = 0
 
@@ -7,6 +7,7 @@ export default class State {
     this.activeAction = 0
     this.actionList = []
     this.actions = new Map()
+    this.timer = null
 
     this.isOpen = true
     this.debugWindow = {
@@ -37,6 +38,7 @@ export default class State {
     })
 
     this.frameCount = 0
+    window.debugTickDelay = 15
   }
 
   resizeInner(window) {
@@ -64,13 +66,22 @@ export default class State {
 
   debugTick(deltaTime) {
     this.frameCount++
+    this.timer.getAllTimings()
+
     if (!this.isOpen) {
       return
     }
     let finalText = ""
     const debugTextAdd = text => (finalText += `<div>${text}</div>`)
-    if (this.frameCount % 3 === 0) {
-      debugTextAdd(`Delta Time: ${deltaTime.toFixed(3)}`)
+    if (this.frameCount % window.debugTickDelay === 0) {
+      debugTextAdd(`Delta Time: ${deltaTime.toFixed(3)} ms`)
+      let i = 0
+      for (const [name, query] of this.timer.timings) {
+        const n = `${++i}`.padStart(2, "0")
+        const time = `${query.elapsedMillis.toFixed(3)}`.padStart(8)
+        const nm = `${name.padStart(16)}`
+        debugTextAdd(`| #${n} ${nm}: ${time} ms`)
+      }
       this.debug.innerHTML = finalText
     }
   }

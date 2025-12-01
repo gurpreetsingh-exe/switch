@@ -11,6 +11,7 @@ import {
 } from "./texture.js"
 import { backend, gl, initContext } from "./context.js"
 import State from "./state.js"
+import GPUTimer from "./timer.js"
 import { IntroAction, OrbitAction } from "./action.js"
 import Mesh from "./mesh.js"
 import Renderer from "./renderer.js"
@@ -101,99 +102,132 @@ const draw = _deltaTime => {
   gl.useProgram(programInfo.program)
   programInfo.shader.with(() => {
     const camera = renderer.camera
-    programInfo.shader.uniformMat4("uProjectionMatrix", camera.projectionMatrix)
-    programInfo.shader.uniformMat4("uViewMatrix", camera.viewMatrix)
-    programInfo.shader.uniformVec3("uViewVector", camera.location)
-    programInfo.shader.uniformVec3("uCameraPosition", camera.direction())
-    programInfo.shader.uniformVec3("uLightDirection", window.lightDirection)
-    programInfo.shader.uniformSampler("uIrradiance", programInfo.irradiance)
-    programInfo.shader.uniformSampler("uPrefilter", programInfo.prefilter)
-    programInfo.shader.uniformSampler("uBrdfLUT", programInfo.brdfLut)
-    programInfo.shader.uniformFloat(
-      "uMaxMipLevel",
-      Math.floor(backend.maxMipLevel * 0.5) - 1.0,
-    )
-
-    programInfo.meshes.forEach(me => {
-      let offset = 0
-      if (
-        switchPressedAnimationFrame > 0 &&
-        Object.keys(me.animation).length !== 0
-      ) {
-        offset = me.animation.keyframes[40 - switchPressedAnimationFrame]
-      }
-
-      const r = me.rotation
-      const translation = mat4.create()
-      mat4.identity(translation)
-      const interp_location = vec3.create()
-      vec3.lerp(
-        interp_location,
-        [0, 0, 1],
-        [0, 0, 0],
-        easeInOutElastic(state.actions.get(IntroAction.type).n),
+    state.timer.with("set-uniform", () => {
+      programInfo.shader.uniformMat4(
+        "uProjectionMatrix",
+        camera.projectionMatrix,
       )
-
-      mat4.translate(translation, translation, me.location)
-      mat4.translate(translation, translation, interp_location)
-
-      const rotation = mat4.create()
-      mat4.identity(rotation)
-      const rqt = [r[3], r[2], r[1], r[0]]
-      mat4.fromQuat(rotation, rqt)
-
-      mat4.mul(modelMatrix, translation, rotation)
-
-      const r2 = mat4.create()
-      mat4.identity(r2)
-      const rqt2 = quat.create()
-      quat.identity(rqt2)
-
-      quat.rotateX(rqt2, rqt2, random_rotation[0] + rot.y * 0.1)
-      quat.rotateY(rqt2, rqt2, random_rotation[1] + rot.x * 0.1)
-      quat.rotateZ(rqt2, rqt2, random_rotation[2])
-
-      mat4.fromQuat(r2, rqt2)
-
-      const origin = [-me.location[0], -me.location[1], -me.location[2]]
-      mat4.fromRotationTranslationScaleOrigin(
-        r2,
-        rqt2,
-        [0, 0, 0],
-        [window.objectScale, window.objectScale, window.objectScale],
-        origin,
+      programInfo.shader.uniformMat4("uViewMatrix", camera.viewMatrix)
+      programInfo.shader.uniformVec3("uViewVector", camera.location)
+      programInfo.shader.uniformVec3("uCameraPosition", camera.direction())
+      programInfo.shader.uniformVec3("uLightDirection", window.lightDirection)
+      programInfo.shader.uniformSampler("uIrradiance", programInfo.irradiance)
+      programInfo.shader.uniformSampler("uPrefilter", programInfo.prefilter)
+      programInfo.shader.uniformSampler("uBrdfLUT", programInfo.brdfLut)
+      programInfo.shader.uniformFloat(
+        "uMaxMipLevel",
+        Math.floor(backend.maxMipLevel * 0.5) - 1.0,
       )
+    })
 
-      mat4.mul(modelMatrix, modelMatrix, r2)
-      mat4.translate(modelMatrix, modelMatrix, [0, 0, offset])
+    state.timer.with("all-meshes-draw", () => {
+      programInfo.meshes.forEach((me, i) => {
+        let offset = 0
+        if (
+          switchPressedAnimationFrame > 0 &&
+          Object.keys(me.animation).length !== 0
+        ) {
+          offset = me.animation.keyframes[40 - switchPressedAnimationFrame]
+        }
 
-      programInfo.shader.uniformMat4("uModelMatrix", modelMatrix)
+        const r = me.rotation
+        const translation = mat4.create()
+        mat4.identity(translation)
+        const interp_location = vec3.create()
+        vec3.lerp(
+          interp_location,
+          [0, 0, 1],
+          [0, 0, 0],
+          easeInOutElastic(state.actions.get(IntroAction.type).n),
+        )
 
-      const m = me.material
-      programInfo.shader.uniformVec3("uDiffuseColor", m.diffuse)
-      programInfo.shader.uniformFloat("uRoughness", m.roughness)
-      programInfo.shader.uniformFloat("uMetallic", m.metallic)
+        mat4.translate(translation, translation, me.location)
+        mat4.translate(translation, translation, interp_location)
 
-      me.gpuMesh.draw()
+        const rotation = mat4.create()
+        mat4.identity(rotation)
+        const rqt = [r[3], r[2], r[1], r[0]]
+        mat4.fromQuat(rotation, rqt)
+
+        mat4.mul(modelMatrix, translation, rotation)
+
+        const r2 = mat4.create()
+        mat4.identity(r2)
+        const rqt2 = quat.create()
+        quat.identity(rqt2)
+
+        quat.rotateX(rqt2, rqt2, random_rotation[0] + rot.y * 0.1)
+        quat.rotateY(rqt2, rqt2, random_rotation[1] + rot.x * 0.1)
+        quat.rotateZ(rqt2, rqt2, random_rotation[2])
+
+        mat4.fromQuat(r2, rqt2)
+
+        const origin = [-me.location[0], -me.location[1], -me.location[2]]
+        mat4.fromRotationTranslationScaleOrigin(
+          r2,
+          rqt2,
+          [0, 0, 0],
+          [window.objectScale, window.objectScale, window.objectScale],
+          origin,
+        )
+
+        mat4.mul(modelMatrix, modelMatrix, r2)
+        mat4.translate(modelMatrix, modelMatrix, [0, 0, offset])
+
+        programInfo.shader.uniformMat4("uModelMatrix", modelMatrix)
+
+        const m = me.material
+        programInfo.shader.uniformVec3("uDiffuseColor", m.diffuse)
+        programInfo.shader.uniformFloat("uRoughness", m.roughness)
+        programInfo.shader.uniformFloat("uMetallic", m.metallic)
+
+        state.timer.with(`mesh-draw.${i}`, () => me.gpuMesh.draw())
+      })
     })
 
     gl.disable(gl.DEPTH_TEST)
   })
 }
 
-let lastTime = 0
+const ONE_SECOND = 1000
+const FPS = 60
+const DELTA_TIME = ONE_SECOND / FPS
 
-const tick = (time = 0) => {
-  const deltaTime = time - lastTime
+export default class Timer {
+  constructor(deltaTime) {
+    let accumulatedTime = 0
+    let lastTime = null
+
+    this.tickProxy = time => {
+      if (lastTime) {
+        accumulatedTime += time - lastTime
+
+        if (accumulatedTime > ONE_SECOND) {
+          accumulatedTime = ONE_SECOND
+        }
+
+        while (accumulatedTime > deltaTime) {
+          this.tick(deltaTime)
+          accumulatedTime -= deltaTime
+        }
+      }
+
+      lastTime = time
+      requestAnimationFrame(this.tickProxy)
+    }
+  }
+
+  start() {
+    requestAnimationFrame(this.tickProxy)
+  }
+}
+
+const tick = deltaTime => {
   state.tick(deltaTime)
   if (switchPressedAnimationFrame > 0) {
     switchPressedAnimationFrame--
   }
-
-  draw(deltaTime)
-
-  requestAnimationFrame(tick)
-  lastTime = time
+  state.timer.with("root-draw", () => draw(deltaTime))
 }
 
 const main = () => {
@@ -213,6 +247,7 @@ const main = () => {
 
   state.addAction(IntroAction.type, new IntroAction())
   state.addAction(OrbitAction.type, new OrbitAction())
+  state.timer = new GPUTimer()
 
   const resize = window => {
     canvas.width = window.innerWidth
@@ -299,7 +334,9 @@ const main = () => {
         size: 0,
       }
 
-      tick()
+      const timer = new Timer(DELTA_TIME)
+      timer.tick = tick
+      timer.start()
     })
 }
 
