@@ -1,4 +1,4 @@
-const DEBUG_WINDOW_WIDTH = 300
+const DEBUG_WINDOW_WIDTH = 500
 const DEBUG_WINDOW_HEIGHT = 300
 const BORDER = 0
 
@@ -42,7 +42,7 @@ export default class State {
   }
 
   resizeInner(window) {
-    this.debugWindow.x = window.innerWidth - DEBUG_WINDOW_WIDTH
+    this.debugWindow.x = 0
     this.debugWindow.y = window.innerHeight - DEBUG_WINDOW_HEIGHT
     this.debug.style.left = `${this.debugWindow.x - BORDER * 2}px`
     this.debug.style.top = `${this.debugWindow.y - BORDER * 2}px`
@@ -64,24 +64,42 @@ export default class State {
     this.debugTick(deltaTime)
   }
 
-  debugTick(deltaTime) {
+  debugTick(_deltaTime) {
     this.frameCount++
-    this.timer.getAllTimings()
+    this.timer.gpuTimer.getAllTimings()
 
     if (!this.isOpen) {
       return
     }
     let finalText = ""
-    const debugTextAdd = text => (finalText += `<div>${text}</div>`)
+    const debugTextAdd = text =>
+      (finalText += `<div style="white-space: pre;">${text}</div>`)
     if (this.frameCount % window.debugTickDelay === 0) {
-      debugTextAdd(`Delta Time: ${deltaTime.toFixed(3)} ms`)
       let i = 0
-      for (const [name, query] of this.timer.timings) {
+      debugTextAdd("                      Timings                      ")
+      debugTextAdd(" +=================================================+")
+      debugTextAdd(" | IDX |             NAME |  GPU TIME |  CPU TIME  |")
+      debugTextAdd(" |-------------------------------------------------|")
+      let names = new Set(this.timer.gpuTimer.timings.keys())
+      names = names.union(new Set(this.timer.cpuTimer.timings.keys()))
+      for (const name of names) {
         const n = `${++i}`.padStart(2, "0")
-        const time = `${query.elapsedMillis.toFixed(3)}`.padStart(8)
         const nm = `${name.padStart(16)}`
-        debugTextAdd(`| #${n} ${nm}: ${time} ms`)
+        let gpuTime = "----".padStart(6)
+        if (this.timer.gpuTimer.timings.has(name)) {
+          const { queryObj } = this.timer.gpuTimer.timings.get(name)
+          gpuTime = `${queryObj.elapsedMillis.toFixed(2)}`.padStart(6)
+        }
+
+        let cpuTime = "----".padStart(6)
+        if (this.timer.cpuTimer.timings.has(name)) {
+          const cpuElapsedMillis = this.timer.cpuTimer.timings.get(name)
+          cpuTime = `${cpuElapsedMillis.toFixed(2)}`.padStart(6)
+        }
+
+        debugTextAdd(` |  ${n} | ${nm} | ${gpuTime} ms | ${cpuTime} ms  |`)
       }
+      debugTextAdd(" +=================================================+")
       this.debug.innerHTML = finalText
     }
   }

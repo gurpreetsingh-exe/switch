@@ -11,7 +11,8 @@ import {
 } from "./texture.js"
 import { backend, gl, initContext } from "./context.js"
 import State from "./state.js"
-import GPUTimer from "./timer.js"
+import DeviceTimer from "./timer.js"
+import { RequestAnimationFrameTick } from "./tick.js"
 import { IntroAction, OrbitAction } from "./action.js"
 import Mesh from "./mesh.js"
 import Renderer from "./renderer.js"
@@ -189,45 +190,14 @@ const draw = _deltaTime => {
   })
 }
 
-const ONE_SECOND = 1000
-const FPS = 60
-const DELTA_TIME = ONE_SECOND / FPS
-
-export default class Timer {
-  constructor(deltaTime) {
-    let accumulatedTime = 0
-    let lastTime = null
-
-    this.tickProxy = time => {
-      if (lastTime) {
-        accumulatedTime += time - lastTime
-
-        if (accumulatedTime > ONE_SECOND) {
-          accumulatedTime = ONE_SECOND
-        }
-
-        while (accumulatedTime > deltaTime) {
-          this.tick(deltaTime)
-          accumulatedTime -= deltaTime
-        }
-      }
-
-      lastTime = time
-      requestAnimationFrame(this.tickProxy)
-    }
-  }
-
-  start() {
-    requestAnimationFrame(this.tickProxy)
-  }
-}
-
 const tick = deltaTime => {
-  state.tick(deltaTime)
-  if (switchPressedAnimationFrame > 0) {
-    switchPressedAnimationFrame--
-  }
-  state.timer.with("root-draw", () => draw(deltaTime))
+  state.timer.withCPU("tick", () => {
+    state.tick(deltaTime)
+    if (switchPressedAnimationFrame > 0) {
+      switchPressedAnimationFrame--
+    }
+    state.timer.with("root-draw", () => draw(deltaTime))
+  })
 }
 
 const main = () => {
@@ -247,7 +217,7 @@ const main = () => {
 
   state.addAction(IntroAction.type, new IntroAction())
   state.addAction(OrbitAction.type, new OrbitAction())
-  state.timer = new GPUTimer()
+  state.timer = new DeviceTimer()
 
   const resize = window => {
     canvas.width = window.innerWidth
@@ -334,9 +304,8 @@ const main = () => {
         size: 0,
       }
 
-      const timer = new Timer(DELTA_TIME)
-      timer.tick = tick
-      timer.start()
+      new RequestAnimationFrameTick(tick).enqueue()
+      // new ConstTick(tick).enqueue()
     })
 }
 
