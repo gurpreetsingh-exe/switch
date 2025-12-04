@@ -123,7 +123,6 @@ const draw = _deltaTime => {
 
         const r = me.rotation
         const translation = mat4.create()
-        mat4.identity(translation)
         const interp_location = vec3.create()
         vec3.lerp(
           interp_location,
@@ -136,16 +135,13 @@ const draw = _deltaTime => {
         mat4.translate(translation, translation, interp_location)
 
         const rotation = mat4.create()
-        mat4.identity(rotation)
         const rqt = [r[3], r[2], r[1], r[0]]
         mat4.fromQuat(rotation, rqt)
 
         mat4.mul(modelMatrix, translation, rotation)
 
         const r2 = mat4.create()
-        mat4.identity(r2)
         const rqt2 = quat.create()
-        quat.identity(rqt2)
 
         quat.rotateX(rqt2, rqt2, random_rotation[0] + rot.y * 0.1)
         quat.rotateY(rqt2, rqt2, random_rotation[1] + rot.x * 0.1)
