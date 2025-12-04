@@ -1,3 +1,4 @@
+import GPUBuffer from "./buffer.js"
 import { gl } from "./context.js"
 
 /**
@@ -24,9 +25,25 @@ export const initShaderProgram = (gl, vsSource, fsSource) => {
 }
 
 class ShaderCompiler {
-  constructor() {
-    this.epilogue = "#version 300 es\nprecision highp float;\n"
+  constructor(mathDefines = false) {
+    this.epilogue = "#version 300 es\nprecision mediump float;\n"
     this.defines = []
+    this.uniformBlocks = []
+    if (mathDefines) {
+      this.addMathDefines()
+    }
+  }
+
+  addMathDefines() {
+    this.define("MATH_PI", "3.1415926535897932384626433832795")
+    this.define("MATH_INV_PI", "(1.0 / MATH_PI)")
+  }
+
+  uniformBlock(name, values) {
+    const struct = values
+      .map(({ name, type }) => `  ${type} ${name};`)
+      .join("\n")
+    this.uniformBlocks.push(`uniform ${name} \{\n${struct}\n\};`)
   }
 
   define(name, value) {
@@ -34,13 +51,12 @@ class ShaderCompiler {
   }
 
   generate(src) {
-    return `${this.epilogue}\n${this.defines.join("\n")}\n${src}`
+    const f = v => (v.length > 0 ? v.join("\n") + "\n\n" : "")
+    const ubs = f(this.uniformBlocks)
+    const defs = f(this.defines)
+    return `${this.epilogue}\n${ubs}${defs}${src}`
   }
 }
-
-const compiler = new ShaderCompiler()
-compiler.define("MATH_PI", "3.1415926535897932384626433832795")
-compiler.define("MATH_INV_PI", "(1.0 / MATH_PI)")
 
 /**
  * @param {WebGL2RenderingContext} gl
@@ -63,11 +79,51 @@ export class Shader {
   #id
 
   constructor(info) {
+    this.uniformBlockInfo = new Map()
+    const compiler = new ShaderCompiler(true)
+    if (info.defines) {
+      info.defines.forEach(({ name, value }) => {
+        compiler.define(name, value)
+      })
+    }
+    if (info.uniformBlocks) {
+      info.uniformBlocks.forEach(block => {
+        compiler.uniformBlock(block.name, block.members)
+      })
+    }
     this.#id = initShaderProgram(
       gl,
       compiler.generate(info.vertex),
       compiler.generate(info.fragment),
     )
+
+    if (info.uniformBlocks) {
+      info.uniformBlocks.forEach(block => {
+        const uniformBlockInfo = {}
+        const blockInfo = this.createUniformBlockInfo(block.name)
+        gl.bindBufferBase(gl.UNIFORM_BUFFER, 0, blockInfo.buffer.id)
+        const uniformVarNames = block.members.map(({ name }) => name)
+        const uniformIndices = gl.getUniformIndices(this.#id, uniformVarNames)
+        const uniformOffsets = gl.getActiveUniforms(
+          this.#id,
+          uniformIndices,
+          gl.UNIFORM_OFFSET,
+        )
+
+        uniformVarNames.forEach((name, index) => {
+          uniformBlockInfo[name] = {
+            index: uniformIndices[index],
+            offset: uniformOffsets[index],
+          }
+        })
+
+        uniformBlockInfo.uniformBuffer = blockInfo.buffer
+        uniformBlockInfo.index = blockInfo.index
+        gl.uniformBlockBinding(this.#id, blockInfo.index, block.binding)
+        this.uniformBlockInfo.set(block.name, uniformBlockInfo)
+      })
+    }
+
     this.uniforms = new Map()
     this.boundSamplers = 0
   }
@@ -80,6 +136,21 @@ export class Shader {
     const location = gl.getUniformLocation(this.#id, name)
     this.uniforms.set(name, location)
     return location
+  }
+
+  createUniformBlockInfo(name) {
+    const blockIndex = gl.getUniformBlockIndex(this.#id, name)
+    const blockSize = gl.getActiveUniformBlockParameter(
+      this.#id,
+      blockIndex,
+      gl.UNIFORM_BLOCK_DATA_SIZE,
+    )
+
+    const info = {
+      buffer: new GPUBuffer(gl.UNIFORM_BUFFER, blockSize),
+      index: blockIndex,
+    }
+    return info
   }
 
   with = f => {

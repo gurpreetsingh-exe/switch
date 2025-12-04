@@ -1,3 +1,5 @@
+import { state } from "./main.js"
+
 export class TickManager {
   constructor(tick) {
     this.tick = tick

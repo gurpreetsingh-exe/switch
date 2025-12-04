@@ -3,8 +3,6 @@ in vec3 aNormal;
 out vec3 v_position;
 out vec3 v_normal;
 
-uniform mat4 uProjectionMatrix;
-uniform mat4 uViewMatrix;
 uniform mat4 uModelMatrix;
 
 void main() {

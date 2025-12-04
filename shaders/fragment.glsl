@@ -9,10 +9,7 @@ uniform sampler2D uBrdfLUT;
 uniform vec3 uDiffuseColor;
 uniform float uRoughness;
 uniform float uMetallic;
-uniform vec3 uViewVector;
 uniform vec3 uLightDirection;
-uniform vec3 uCameraPosition;
-uniform float uMaxMipLevel;
 
 float D_GGX(float NoH, float a) {
   float a2 = a * a;
@@ -125,7 +122,7 @@ void main() {
   vec3 diffuse = irradiance * uDiffuseColor;
 
   vec3 prefilteredColor =
-      textureLod(uPrefilter, reflect(I, N), roughness * uMaxMipLevel).rgb;
+      textureLod(uPrefilter, reflect(I, N), roughness * MAX_MIP_LEVEL).rgb;
   vec2 brdf = texture(uBrdfLUT, vec2(NoV, roughness)).rg;
   vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
 

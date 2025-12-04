@@ -12,14 +12,14 @@ import {
 import { backend, gl, initContext } from "./context.js"
 import State from "./state.js"
 import DeviceTimer from "./timer.js"
-import { RequestAnimationFrameTick } from "./tick.js"
+import { RequestAnimationFrameTick, ConstTick } from "./tick.js"
 import { IntroAction, OrbitAction } from "./action.js"
 import Mesh from "./mesh.js"
 import Renderer from "./renderer.js"
 import { Vector3 } from "./math.js"
 
 let programInfo = null
-const state = new State()
+export const state = new State()
 let renderer = null
 
 const rot = { x: 0, y: 0 }
@@ -99,18 +99,8 @@ const draw = _deltaTime => {
   const modelMatrix = mat4.create()
 
   gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
-
-  gl.useProgram(programInfo.program)
   programInfo.shader.with(() => {
-    const camera = renderer.camera
     state.timer.with("set-uniform", () => {
-      programInfo.shader.uniformMat4(
-        "uProjectionMatrix",
-        camera.projectionMatrix,
-      )
-      programInfo.shader.uniformMat4("uViewMatrix", camera.viewMatrix)
-      programInfo.shader.uniformVec3("uViewVector", camera.location)
-      programInfo.shader.uniformVec3("uCameraPosition", camera.direction())
       programInfo.shader.uniformVec3("uLightDirection", window.lightDirection)
       programInfo.shader.uniformSampler("uIrradiance", programInfo.irradiance)
       programInfo.shader.uniformSampler("uPrefilter", programInfo.prefilter)
@@ -222,11 +212,21 @@ const main = () => {
   const resize = window => {
     canvas.width = window.innerWidth
     canvas.height = window.innerHeight
-    renderer.camera.resize(canvas.width, canvas.height)
+    const camera = renderer.camera
+    camera.resize(canvas.width, canvas.height)
     state.resizeInner(window)
+    const cameraInfo = programInfo.shader.uniformBlockInfo.get("CameraInfo")
+    const data = [
+      ...camera.projectionMatrix,
+      ...camera.viewMatrix,
+      ...camera.location.asArray(),
+      0,
+      ...camera.direction().asArray(),
+      0,
+    ]
+    cameraInfo.uniformBuffer.write(new Float32Array(data))
   }
 
-  resize(window)
   window.addEventListener("resize", e => resize(e.target))
 
   window.addEventListener("mousemove", e => {
@@ -278,9 +278,28 @@ const main = () => {
     )
     .then(([vertex, fragment, fs, brdfPrecomp, meshes, hdri]) => {
       const brdfShader = new Shader({ vertex: fs, fragment: brdfPrecomp })
+      const maxMipLevel = Math.floor(backend.maxMipLevel * 0.5) - 1.0
+      const defines = [
+        {
+          name: "MAX_MIP_LEVEL",
+          value: `${maxMipLevel.toFixed(1)}`,
+        },
+      ]
+      const uniformBlocks = [
+        {
+          name: "CameraInfo",
+          members: [
+            { name: "uProjectionMatrix", type: "mat4" },
+            { name: "uViewMatrix", type: "mat4" },
+            { name: "uViewVector", type: "vec3" },
+            { name: "uCameraPosition", type: "vec3" },
+          ],
+          binding: 0,
+        },
+      ]
 
       programInfo = {
-        shader: new Shader({ vertex, fragment }),
+        shader: new Shader({ vertex, fragment, defines, uniformBlocks }),
         meshes: meshes.map(
           rmesh =>
             new Mesh(
@@ -304,6 +323,7 @@ const main = () => {
         size: 0,
       }
 
+      resize(window)
       new RequestAnimationFrameTick(tick).enqueue()
       // new ConstTick(tick).enqueue()
     })
