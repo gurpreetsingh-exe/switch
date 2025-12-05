@@ -225,16 +225,6 @@ const main = () => {
 
   window.addEventListener("resize", e => resize(e.target))
 
-  window.addEventListener("mousemove", e => {
-    const halfWidth = canvas.width / 2
-    const halfHeight = canvas.height / 2
-    const x = e.clientX - halfWidth
-    const y = e.clientY - halfHeight
-    const unit = 1
-    rot.x = (x / halfWidth) * unit
-    rot.y = (y / halfHeight) * unit
-  })
-
   window.addEventListener("mousedown", e => {
     if (e.button === 0) {
       switchPressedAnimationFrame = 40
@@ -245,6 +235,33 @@ const main = () => {
     progress -= e.wheelDelta / 100
     progress = Math.max(Math.min(progress, 100), 0)
   })
+
+  if (backend.isMobile) {
+    let lastExecution = 0
+    window.addEventListener("deviceorientation", e => {
+      const now = Date.now()
+      if (now - lastExecution < 1000 / 60) {
+        return
+      }
+      lastExecution = now
+
+      const x = (Math.PI / 180) * e.gamma
+      const y = (Math.PI / 180) * (e.beta - 25)
+      const unit = Math.PI * 2
+      rot.x = x * unit
+      rot.y = y * unit
+    })
+  } else {
+    window.addEventListener("mousemove", e => {
+      const halfWidth = canvas.width / 2
+      const halfHeight = canvas.height / 2
+      const x = e.clientX - halfWidth
+      const y = e.clientY - halfHeight
+      const unit = 1
+      rot.x = (x / halfWidth) * unit
+      rot.y = (y / halfHeight) * unit
+    })
+  }
 
   window.lightDirection = new Vector3(0.2, -0.25, -1)
   window.objectScale = 1
@@ -325,4 +342,10 @@ const main = () => {
     })
 }
 
-window.onload = main
+window.onload = () => {
+  try {
+    main()
+  } catch (error) {
+    document.writeln(error)
+  }
+}

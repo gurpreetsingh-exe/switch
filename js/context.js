@@ -12,6 +12,8 @@ export const initContext = canvas => {
     supportedExtensions: gl.getSupportedExtensions(),
     maxUniformBufferSize: `${Math.floor(maxUniformBufferSize / 1024)}KB`,
     timerEXT: gl.getExtension("EXT_disjoint_timer_query_webgl2"),
+    // https://stackoverflow.com/a/29509267
+    isMobile: /iPhone|iPad|iPod|Android/i.test(navigator.userAgent),
   }
   console.log(backend)
 }
