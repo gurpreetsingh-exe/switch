@@ -59,7 +59,7 @@ header {
 
 nav {
   display: flex;
-  padding: 20px;
+  padding-top: 20px;
   justify-content: center;
   font-size: 1.2rem;
   color: #fff;
@@ -68,6 +68,7 @@ nav {
 }
 
 .header-title {
+  padding-left: 20px;
   color: var(--green);
   font-weight: 900;
   font-size: 1.2rem;
@@ -110,4 +111,14 @@ ul li {
   overflow: hidden;
   float: left;
   padding: 0 20px;
+}
+
+@media (max-width: 600px) {
+  nav {
+    font-size: 0.8rem;
+  }
+
+  .header-title {
+    font-size: 0.8rem;
+  }
 }

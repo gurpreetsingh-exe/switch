@@ -1,5 +1,5 @@
-const DEBUG_WINDOW_WIDTH = 500
-const DEBUG_WINDOW_HEIGHT = 300
+const DEBUG_WINDOW_WIDTH = 200
+const DEBUG_WINDOW_HEIGHT = 120
 const BORDER = 0
 
 export default class State {
@@ -15,6 +15,7 @@ export default class State {
       y: window.innerHeight - DEBUG_WINDOW_HEIGHT,
     }
     this.debug = document.getElementById("debug")
+    this.debug.classList.add("debug")
     this.debug.style.position = "absolute"
     this.debug.style.zIndex = 140
     this.debug.style.backgroundColor = "rgba(0, 0, 0, 0.1)"
@@ -23,6 +24,7 @@ export default class State {
     this.debug.style.width = `${DEBUG_WINDOW_WIDTH}px`
     this.debug.style.height = `${DEBUG_WINDOW_HEIGHT}px`
     this.debug.style.fontFamily = "monospace"
+    this.debug.style.fontSize = "6px"
 
     window.addEventListener("keydown", e => {
       if (e.code == "KeyD") {
