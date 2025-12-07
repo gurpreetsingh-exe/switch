@@ -13,7 +13,7 @@ import { backend, gl, initContext } from "./context.js"
 import State from "./state.js"
 import DeviceTimer from "./timer.js"
 import { RequestAnimationFrameTick, ConstTick } from "./tick.js"
-import { IntroAction, OrbitAction } from "./action.js"
+import { IntroAction, OrbitAction, KeyframeAction } from "./action.js"
 import Mesh from "./mesh.js"
 import Renderer from "./renderer.js"
 import { Vector3 } from "./math.js"
@@ -21,20 +21,6 @@ import { Vector3 } from "./math.js"
 let programInfo = null
 export const state = new State()
 let renderer = null
-
-const rot = { x: 0, y: 0 }
-
-const easeInOutElastic = x => {
-  const c5 = (2 * Math.PI) / 4.5
-
-  return x === 0
-    ? 0
-    : x === 1
-      ? 1
-      : x < 0.5
-        ? -(Math.pow(2, 20 * x - 10) * Math.sin((20 * x - 11.125) * c5)) / 2
-        : (Math.pow(2, -20 * x + 10) * Math.sin((20 * x - 11.125) * c5)) / 2 + 1
-}
 
 const random_rotation = [-1, 0.5, 0]
 // const random_rotation = [0, 0, 0]
@@ -86,7 +72,7 @@ const generatePrecompBrdf = (brdfShader, size) => {
   return new Texture(Texture2D, size, size, brdfLUTTexture)
 }
 
-let switchPressedAnimationFrame = 0
+const isEmpty = o => Object.keys(o).length === 0
 
 const draw = _deltaTime => {
   gl.clearColor(0, 0, 0, 0)
@@ -105,31 +91,18 @@ const draw = _deltaTime => {
       programInfo.shader.uniformSampler("uIrradiance", programInfo.irradiance)
       programInfo.shader.uniformSampler("uPrefilter", programInfo.prefilter)
       programInfo.shader.uniformSampler("uBrdfLUT", programInfo.brdfLut)
-      programInfo.shader.uniformFloat(
-        "uMaxMipLevel",
-        Math.floor(backend.maxMipLevel * 0.5) - 1.0,
-      )
     })
 
     state.timer.with("all-meshes-draw", () => {
       programInfo.meshes.forEach((me, i) => {
-        let offset = 0
-        if (
-          switchPressedAnimationFrame > 0 &&
-          Object.keys(me.animation).length !== 0
-        ) {
-          offset = me.animation.keyframes[40 - switchPressedAnimationFrame]
-        }
+        const actions = state.actionManager.actions
+        const name = `mesh.${i}`
+        const offset = actions.has(name) ? actions.get(name).n : 0
 
         const r = me.rotation
         const translation = mat4.create()
         const interp_location = vec3.create()
-        vec3.lerp(
-          interp_location,
-          [0, 0, 1],
-          [0, 0, 0],
-          easeInOutElastic(state.actions.get(IntroAction.type).n),
-        )
+        vec3.lerp(interp_location, [0, 0, 1], [0, 0, 0], actions.get("intro").n)
 
         mat4.translate(translation, translation, me.location)
         mat4.translate(translation, translation, interp_location)
@@ -143,6 +116,7 @@ const draw = _deltaTime => {
         const r2 = mat4.create()
         const rqt2 = quat.create()
 
+        const rot = actions.get("orbit").rot
         quat.rotateX(rqt2, rqt2, random_rotation[0] + rot.y * 0.1)
         quat.rotateY(rqt2, rqt2, random_rotation[1] + rot.x * 0.1)
         quat.rotateZ(rqt2, rqt2, random_rotation[2])
@@ -179,9 +153,6 @@ const draw = _deltaTime => {
 const tick = deltaTime => {
   state.timer.withCPU("tick", () => {
     state.tick(deltaTime)
-    if (switchPressedAnimationFrame > 0) {
-      switchPressedAnimationFrame--
-    }
     state.timer.with("root-draw", () => draw(deltaTime))
   })
 }
@@ -201,8 +172,9 @@ const main = () => {
 
   renderer = new Renderer()
 
-  state.addAction(IntroAction.type, new IntroAction())
-  state.addAction(OrbitAction.type, new OrbitAction())
+  state.actionManager.addAction("intro", new IntroAction())
+  state.actionManager.addAction("orbit", new OrbitAction())
+  state.actionManager.play("intro")
   state.timer = new DeviceTimer()
 
   const resize = window => {
@@ -227,7 +199,15 @@ const main = () => {
 
   window.addEventListener("mousedown", e => {
     if (e.button === 0) {
-      switchPressedAnimationFrame = 40
+      programInfo.meshes.forEach(me => {
+        const name = me.animation
+        if (name === null) {
+          return
+        }
+
+        state.actionManager.actions.get(name).reset()
+        state.actionManager.play(name)
+      })
     }
   })
 
@@ -235,33 +215,6 @@ const main = () => {
     progress -= e.wheelDelta / 100
     progress = Math.max(Math.min(progress, 100), 0)
   })
-
-  if (backend.isMobile) {
-    let lastExecution = 0
-    window.addEventListener("deviceorientation", e => {
-      const now = Date.now()
-      if (now - lastExecution < 1000 / 60) {
-        return
-      }
-      lastExecution = now
-
-      const x = (Math.PI / 180) * e.gamma
-      const y = (Math.PI / 180) * (e.beta - 25)
-      const unit = Math.PI * 2
-      rot.x = x * unit
-      rot.y = y * unit
-    })
-  } else {
-    window.addEventListener("mousemove", e => {
-      const halfWidth = canvas.width / 2
-      const halfHeight = canvas.height / 2
-      const x = e.clientX - halfWidth
-      const y = e.clientY - halfHeight
-      const unit = 1
-      rot.x = (x / halfWidth) * unit
-      rot.y = (y / halfHeight) * unit
-    })
-  }
 
   window.lightDirection = new Vector3(0.2, -0.25, -1)
   window.objectScale = 1
@@ -313,22 +266,31 @@ const main = () => {
 
       programInfo = {
         shader: new Shader({ vertex, fragment, defines, uniformBlocks }),
-        meshes: meshes.map(
-          rmesh =>
-            new Mesh(
-              rmesh.transform.location,
-              rmesh.transform.rotation,
-              rmesh.vertices,
-              rmesh.normals,
-              rmesh.indices,
-              new Material(
-                Vector3.fromArray(rmesh.material.color),
-                rmesh.material.roughness,
-                rmesh.material.metallic,
-              ),
-              rmesh.animation,
+        meshes: meshes.map((rmesh, i) => {
+          let animation = null
+          if (!isEmpty(rmesh.animation)) {
+            const name = `mesh.${i}`
+            state.actionManager.addAction(
+              name,
+              new KeyframeAction(rmesh.animation.keyframes),
+            )
+            animation = name
+          }
+
+          return new Mesh(
+            rmesh.transform.location,
+            rmesh.transform.rotation,
+            rmesh.vertices,
+            rmesh.normals,
+            rmesh.indices,
+            new Material(
+              Vector3.fromArray(rmesh.material.color),
+              rmesh.material.roughness,
+              rmesh.material.metallic,
             ),
-        ),
+            animation,
+          )
+        }),
         gpuMeshes: [],
         irradiance: generateIrradiance(hdri, 32),
         prefilter: generatePrefilter(hdri, 128),

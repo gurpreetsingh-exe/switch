@@ -2,7 +2,6 @@ in vec3 v_position;
 in vec3 v_normal;
 out vec4 FragColor;
 
-uniform sampler2D uTexture;
 uniform samplerCube uIrradiance;
 uniform samplerCube uPrefilter;
 uniform sampler2D uBrdfLUT;

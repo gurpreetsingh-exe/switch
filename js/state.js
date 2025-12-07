@@ -1,13 +1,13 @@
+import { ActionManager } from "./action.js"
+
 const DEBUG_WINDOW_WIDTH = 200
 const DEBUG_WINDOW_HEIGHT = 120
 const BORDER = 0
 
 export default class State {
   constructor() {
-    this.activeAction = 0
-    this.actionList = []
-    this.actions = new Map()
     this.timer = null
+    this.actionManager = new ActionManager()
 
     this.isOpen = true
     this.debugWindow = {
@@ -50,19 +50,8 @@ export default class State {
     this.debug.style.top = `${this.debugWindow.y - BORDER * 2}px`
   }
 
-  addAction(type, action) {
-    this.actionList.push(type)
-    this.actions.set(type, action)
-  }
-
-  getActiveAction = () => this.actions.get(this.actionList[this.activeAction])
-
   tick(deltaTime) {
-    const action = this.getActiveAction()
-    if (!action.isPlaying() && this.activeAction < this.actionList.length - 1) {
-      this.activeAction += 1
-    }
-    action.update()
+    this.actionManager.tick(deltaTime)
     this.debugTick(deltaTime)
   }
 
