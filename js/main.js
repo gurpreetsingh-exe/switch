@@ -4,9 +4,9 @@ import { loadModel } from "./loaders.js"
 import {
   generateIrradiance,
   generatePrefilter,
+  generatePrecompBrdf,
   loadCubeMapShader,
   Texture,
-  Texture2D,
   TextureCubeMap,
 } from "./texture.js"
 import { backend, gl, initContext } from "./context.js"
@@ -26,65 +26,20 @@ const random_rotation = [-1, 0.5, 0]
 // const random_rotation = [0, 0, 0]
 let progress = 0
 
-const generatePrecompBrdf = (brdfShader, size) => {
-  const brdfLUTTexture = gl.createTexture()
-  gl.bindTexture(gl.TEXTURE_2D, brdfLUTTexture)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-  gl.texImage2D(
-    gl.TEXTURE_2D,
-    0,
-    gl.RG16F,
-    size,
-    size,
-    0,
-    gl.RG,
-    gl.FLOAT,
-    null,
-  )
-
-  const fbo = gl.createFramebuffer()
-  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo)
-  gl.bindTexture(gl.TEXTURE_2D, brdfLUTTexture)
-  gl.framebufferTexture2D(
-    gl.FRAMEBUFFER,
-    gl.COLOR_ATTACHMENT0,
-    gl.TEXTURE_2D,
-    brdfLUTTexture,
-    0,
-  )
-  gl.bindTexture(gl.TEXTURE_2D, brdfLUTTexture)
-  const fbstatus = gl.checkFramebufferStatus(gl.FRAMEBUFFER)
-  if (fbstatus !== gl.FRAMEBUFFER_COMPLETE) {
-    throw new Error(`framebuffer status not complete: ${fbstatus}`)
-  }
-
-  brdfShader.with(() => {
-    gl.viewport(0, 0, size, size)
-    gl.drawArrays(gl.TRIANGLES, 0, 3)
-  })
-
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null)
-  gl.deleteFramebuffer(fbo)
-
-  return new Texture(Texture2D, size, size, brdfLUTTexture)
-}
-
 const isEmpty = o => Object.keys(o).length === 0
 
 const draw = _deltaTime => {
-  gl.clearColor(0, 0, 0, 0)
-  gl.clearDepth(1.0)
+  renderer.clear()
+  renderer.resize()
+
+  programInfo.quadShader.with(() => {
+    gl.bindVertexArray(null)
+    programInfo.quadShader.uniformFloat("uTime", state.frameCount / 144)
+    gl.drawArrays(gl.TRIANGLES, 0, 3)
+  })
+
   gl.enable(gl.DEPTH_TEST)
-  gl.depthFunc(gl.LEQUAL)
 
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
-
-  const modelMatrix = mat4.create()
-
-  gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
   programInfo.shader.with(() => {
     state.timer.with("set-uniform", () => {
       programInfo.shader.uniformVec3("uLightDirection", window.lightDirection)
@@ -111,6 +66,7 @@ const draw = _deltaTime => {
         const rqt = [r[3], r[2], r[1], r[0]]
         mat4.fromQuat(rotation, rqt)
 
+        const modelMatrix = mat4.create()
         mat4.mul(modelMatrix, translation, rotation)
 
         const r2 = mat4.create()
@@ -217,6 +173,7 @@ const main = () => {
   })
 
   window.lightDirection = new Vector3(0.2, -0.25, -1)
+  window.lightDirection = new Vector3(-0.2, -2, 1.5)
   window.objectScale = 1
 
   Promise.all([
@@ -224,6 +181,7 @@ const main = () => {
     fetch("shaders/fragment.glsl"),
     fetch("shaders/fs_quad.glsl"),
     fetch("shaders/brdf_precomp.glsl"),
+    fetch("shaders/texture.glsl"),
     loadModel("assets/switch.json"),
     Texture.create({
       kind: TextureCubeMap,
@@ -232,17 +190,18 @@ const main = () => {
       url: "assets/studio_small_08_1k.hdr",
     }),
   ])
-    .then(([vertex, fragment, fs, brdfPrecomp, meshes, hdri]) =>
+    .then(([vertex, fragment, fs, brdfPrecomp, texture, meshes, hdri]) =>
       Promise.all([
         vertex.text(),
         fragment.text(),
         fs.text(),
         brdfPrecomp.text(),
+        texture.text(),
         meshes,
         hdri,
       ]),
     )
-    .then(([vertex, fragment, fs, brdfPrecomp, meshes, hdri]) => {
+    .then(([vertex, fragment, fs, brdfPrecomp, texture, meshes, hdri]) => {
       const brdfShader = new Shader({ vertex: fs, fragment: brdfPrecomp })
       const maxMipLevel = Math.floor(backend.maxMipLevel * 0.5) - 1.0
       const defines = [
@@ -266,6 +225,7 @@ const main = () => {
 
       programInfo = {
         shader: new Shader({ vertex, fragment, defines, uniformBlocks }),
+        quadShader: new Shader({ vertex: fs, fragment: texture }),
         meshes: meshes.map((rmesh, i) => {
           let animation = null
           if (!isEmpty(rmesh.animation)) {

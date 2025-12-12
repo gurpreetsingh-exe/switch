@@ -325,3 +325,49 @@ export const generatePrefilter = (hdri, size) => {
   gl.bindTexture(gl.TEXTURE_CUBE_MAP, null)
   return new Texture(TextureCubeMap, size, size, id)
 }
+
+export const generatePrecompBrdf = (brdfShader, size) => {
+  const brdfLUTTexture = gl.createTexture()
+  gl.bindTexture(gl.TEXTURE_2D, brdfLUTTexture)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    0,
+    gl.RG16F,
+    size,
+    size,
+    0,
+    gl.RG,
+    gl.FLOAT,
+    null,
+  )
+
+  const fbo = gl.createFramebuffer()
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo)
+  gl.bindTexture(gl.TEXTURE_2D, brdfLUTTexture)
+  gl.framebufferTexture2D(
+    gl.FRAMEBUFFER,
+    gl.COLOR_ATTACHMENT0,
+    gl.TEXTURE_2D,
+    brdfLUTTexture,
+    0,
+  )
+  gl.bindTexture(gl.TEXTURE_2D, brdfLUTTexture)
+  const fbstatus = gl.checkFramebufferStatus(gl.FRAMEBUFFER)
+  if (fbstatus !== gl.FRAMEBUFFER_COMPLETE) {
+    throw new Error(`framebuffer status not complete: ${fbstatus}`)
+  }
+
+  brdfShader.with(() => {
+    gl.viewport(0, 0, size, size)
+    gl.drawArrays(gl.TRIANGLES, 0, 3)
+  })
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+  gl.deleteFramebuffer(fbo)
+
+  return new Texture(Texture2D, size, size, brdfLUTTexture)
+}
